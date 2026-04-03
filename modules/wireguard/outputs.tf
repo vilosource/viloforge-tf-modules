@@ -17,3 +17,8 @@ output "security_group_id" {
   description = "Security group ID"
   value       = module.instance.security_group_id
 }
+
+output "iam_role_name" {
+  description = "IAM role name for the instance profile"
+  value       = module.instance.iam_role_name
+}

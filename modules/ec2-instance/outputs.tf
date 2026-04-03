@@ -17,3 +17,8 @@ output "security_group_id" {
   description = "Security group ID"
   value       = aws_security_group.instance.id
 }
+
+output "iam_role_name" {
+  description = "IAM role name for the instance profile"
+  value       = aws_iam_role.instance.name
+}
