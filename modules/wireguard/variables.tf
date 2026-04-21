@@ -42,3 +42,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "extra_ingress_rules" {
+  description = "Additional security-group ingress rules appended to the WireGuard defaults (UDP 51820 + SSH from WG CIDR). Use for things like exposing 443 when the host also runs an nginx reverse proxy for webhook ingress."
+  type = list(object({
+    from_port   = number
+    to_port     = number
+    protocol    = string
+    cidr_blocks = list(string)
+    description = string
+  }))
+  default = []
+}

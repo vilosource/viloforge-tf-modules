@@ -9,22 +9,25 @@ module "instance" {
   associate_eip     = true
   source_dest_check = false # Required for packet forwarding between peers
 
-  ingress_rules = [
-    {
-      from_port   = var.wg_port
-      to_port     = var.wg_port
-      protocol    = "udp"
-      cidr_blocks = ["0.0.0.0/0"]
-      description = "WireGuard tunnel"
-    },
-    {
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      cidr_blocks = [var.wg_cidr]
-      description = "SSH via WireGuard only"
-    },
-  ]
+  ingress_rules = concat(
+    [
+      {
+        from_port   = var.wg_port
+        to_port     = var.wg_port
+        protocol    = "udp"
+        cidr_blocks = ["0.0.0.0/0"]
+        description = "WireGuard tunnel"
+      },
+      {
+        from_port   = 22
+        to_port     = 22
+        protocol    = "tcp"
+        cidr_blocks = [var.wg_cidr]
+        description = "SSH via WireGuard only"
+      },
+    ],
+    var.extra_ingress_rules,
+  )
 
   tags = merge(var.tags, {
     Role = "wireguard"
