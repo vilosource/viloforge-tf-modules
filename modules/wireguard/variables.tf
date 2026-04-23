@@ -10,6 +10,12 @@ variable "instance_type" {
   default     = "t3.micro"
 }
 
+variable "ami_id" {
+  description = "Pinned AMI ID for the WireGuard instance. If null, latest Ubuntu 24.04 is looked up."
+  type        = string
+  default     = null
+}
+
 variable "subnet_id" {
   description = "Public subnet ID for the WireGuard instance"
   type        = string

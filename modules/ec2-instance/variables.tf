@@ -9,6 +9,12 @@ variable "instance_type" {
   default     = "t3.micro"
 }
 
+variable "ami_id" {
+  description = "Pinned AMI ID. If null, latest Ubuntu 24.04 is looked up (not recommended for prod — causes replacement on upstream refresh)."
+  type        = string
+  default     = null
+}
+
 variable "subnet_id" {
   description = "Subnet ID to launch the instance in"
   type        = string

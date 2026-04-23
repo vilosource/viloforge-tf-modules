@@ -1,5 +1,6 @@
-# Latest Ubuntu 24.04 AMI from Canonical
+# Latest Ubuntu 24.04 AMI from Canonical — used only when var.ami_id is null
 data "aws_ami" "ubuntu" {
+  count       = var.ami_id == null ? 1 : 0
   most_recent = true
   owners      = ["099720109477"] # Canonical
 
@@ -80,7 +81,7 @@ resource "aws_security_group" "instance" {
 
 # EC2 instance
 resource "aws_instance" "main" {
-  ami                  = data.aws_ami.ubuntu.id
+  ami                  = var.ami_id != null ? var.ami_id : data.aws_ami.ubuntu[0].id
   instance_type        = var.instance_type
   subnet_id            = var.subnet_id
   key_name             = var.key_name
@@ -102,6 +103,12 @@ resource "aws_instance" "main" {
   tags = merge(var.tags, {
     Name = var.name
   })
+
+  # AMI pin: require explicit ami_id bump (or taint) to replace the instance.
+  # Prevents accidental replacement when a newer Canonical image is published.
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
 
 # Elastic IP (optional)
