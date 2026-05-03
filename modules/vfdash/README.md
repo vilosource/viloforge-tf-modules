@@ -102,3 +102,44 @@ The Go service hardcodes `chrome-extension://*` plus the
 `https://<domain>`). Lambda Function URL CORS is set to allow
 `*` because CloudFront strips the Function URL hostname out of
 the request and the Go service is the canonical CORS authority.
+
+## CloudFront + OAC + Lambda Function URL gotchas
+
+Three traps the module already handles, documented here so the
+next person reading this doesn't re-derive them:
+
+1. **Two permissions, not one.** Since October 2025, AWS_IAM
+   Function URLs require *both* `lambda:InvokeFunctionUrl` and
+   `lambda:InvokeFunction`. The module grants both; without the
+   second you get a 403 with the message `Forbidden. For
+   troubleshooting Function URL authorization issues, see ...`
+   from the URL gate (Lambda is never invoked).
+
+2. **OAC overwrites the `Authorization` header.** OAC's
+   `signing_behavior = "always"` replaces any client-supplied
+   Authorization with its SigV4 signature, then Lambda's URL
+   frontend strips that header after validating. Apps that
+   authenticate with bearer tokens (us — `Authorization: Bearer
+   <api-key-or-id-token>`) must use a *different* header. The Go
+   service reads from `X-Vfdash-Auth` first, then falls back to
+   `Authorization` for direct/local-dev callers.
+
+3. **POST/PUT bodies must be hash-signed by the client.** OAC
+   signs every PUT/POST origin request including the body, but
+   Lambda Function URLs *reject unsigned payloads*. The client
+   must compute SHA-256 of the request body and send it as
+   `x-amz-content-sha256: <hex>`. Without this header you get
+   `403 InvalidSignatureException`. The vfdash-launchpad
+   extension does this for every request.
+
+A request through CloudFront → OAC → Lambda Function URL → vfdash
+therefore looks like:
+
+```
+POST https://dash.viloforge.com/api/v1/.../entries
+X-Vfdash-Auth: Bearer <key-or-google-id-token>   # for vfdash auth
+Content-Type: application/json
+Idempotency-Key: <client-generated>              # for vfdash idem cache
+x-amz-content-sha256: <sha256(body)>             # for OAC signing
+<json body>
+```

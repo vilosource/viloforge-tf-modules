@@ -184,16 +184,31 @@ resource "aws_lambda_function_url" "main" {
   }
 }
 
-# Permission for CloudFront's OAC to call the Function URL with
+# Permissions for CloudFront's OAC to call the Function URL with
 # SigV4 signing. The principal is the CloudFront service; the
-# AWS:SourceArn condition pins it to *this* distribution.
-resource "aws_lambda_permission" "cloudfront_oac" {
+# AWS:SourceArn condition pins them to *this* distribution.
+#
+# AWS changed the rules in October 2025: AWS_IAM Function URLs
+# now require BOTH lambda:InvokeFunctionUrl AND lambda:InvokeFunction
+# (it used to be just InvokeFunctionUrl). Without the second
+# permission, every CloudFront origin request 403s at the URL gate.
+# See https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html
+# (the note at the top of "Control access to Lambda function URLs").
+resource "aws_lambda_permission" "cloudfront_oac_invoke_url" {
   statement_id           = "AllowCloudFrontInvokeViaOAC"
   function_name          = aws_lambda_function.main.function_name
   action                 = "lambda:InvokeFunctionUrl"
   principal              = "cloudfront.amazonaws.com"
   function_url_auth_type = "AWS_IAM"
   source_arn             = aws_cloudfront_distribution.main.arn
+}
+
+resource "aws_lambda_permission" "cloudfront_oac_invoke_function" {
+  statement_id  = "AllowCloudFrontInvokeFunction"
+  function_name = aws_lambda_function.main.function_name
+  action        = "lambda:InvokeFunction"
+  principal     = "cloudfront.amazonaws.com"
+  source_arn    = aws_cloudfront_distribution.main.arn
 }
 
 # CloudFront forwards the Host header as the original SNI; rip the
