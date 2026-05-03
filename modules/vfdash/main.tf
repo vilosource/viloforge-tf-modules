@@ -164,8 +164,15 @@ resource "aws_lambda_function" "main" {
 }
 
 resource "aws_lambda_function_url" "main" {
-  function_name      = aws_lambda_function.main.function_name
-  authorization_type = "NONE" # the Go service does its own auth
+  function_name = aws_lambda_function.main.function_name
+  # AWS_IAM (not NONE) so the URL can sit safely behind CloudFront
+  # via Origin Access Control + SigV4 signing. AWS's "block public
+  # access for Lambda Function URLs" feature (default-on for new
+  # accounts post-2024) silently 403s unsigned NONE-auth URLs —
+  # routing through CloudFront-signed-OAC is the recommended
+  # alternative and it's also more defensible than relying on a
+  # public URL.
+  authorization_type = "AWS_IAM"
   invoke_mode        = "BUFFERED"
 
   cors {
@@ -175,6 +182,18 @@ resource "aws_lambda_function_url" "main" {
     allow_headers     = ["*"]
     max_age           = 3600
   }
+}
+
+# Permission for CloudFront's OAC to call the Function URL with
+# SigV4 signing. The principal is the CloudFront service; the
+# AWS:SourceArn condition pins it to *this* distribution.
+resource "aws_lambda_permission" "cloudfront_oac" {
+  statement_id           = "AllowCloudFrontInvokeViaOAC"
+  function_name          = aws_lambda_function.main.function_name
+  action                 = "lambda:InvokeFunctionUrl"
+  principal              = "cloudfront.amazonaws.com"
+  function_url_auth_type = "AWS_IAM"
+  source_arn             = aws_cloudfront_distribution.main.arn
 }
 
 # CloudFront forwards the Host header as the original SNI; rip the
@@ -238,6 +257,18 @@ locals {
   cloudfront_origin_request_all_viewer_except_host = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
 }
 
+# Origin Access Control — CloudFront signs every origin request
+# with SigV4 against the lambda service. Pairs with the
+# AWS_IAM-auth Function URL above and the aws_lambda_permission
+# below.
+resource "aws_cloudfront_origin_access_control" "lambda" {
+  name                              = "${var.name}-lambda-oac"
+  description                       = "OAC for ${var.name} → Lambda Function URL"
+  origin_access_control_origin_type = "lambda"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
 resource "aws_cloudfront_distribution" "main" {
   enabled         = true
   is_ipv6_enabled = true
@@ -245,8 +276,9 @@ resource "aws_cloudfront_distribution" "main" {
   aliases         = [var.domain]
 
   origin {
-    origin_id   = "lambda-function-url"
-    domain_name = local.function_url_host
+    origin_id                = "lambda-function-url"
+    domain_name              = local.function_url_host
+    origin_access_control_id = aws_cloudfront_origin_access_control.lambda.id
 
     custom_origin_config {
       http_port              = 80
