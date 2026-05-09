@@ -177,13 +177,12 @@ resource "aws_lambda_function_url" "main" {
   authorization_type = "AWS_IAM"
   invoke_mode        = "BUFFERED"
 
-  cors {
-    allow_credentials = false
-    allow_origins     = ["*"]
-    allow_methods     = ["*"]
-    allow_headers     = ["*"]
-    max_age           = 3600
-  }
+  # No `cors {}` block here — the chi CORSMiddleware in the Go
+  # service handles CORS with a real origin allowlist (incl. the
+  # chrome-extension://* wildcard the launchpad needs). When the
+  # Function URL ALSO writes an Access-Control-Allow-Origin
+  # header, Chrome sees two ACAO values on the response and
+  # rejects it as a CORS violation. One source of CORS truth.
 }
 
 # Permissions for CloudFront's OAC to call the Function URL with
