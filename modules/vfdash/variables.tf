@@ -31,17 +31,37 @@ variable "lambda_timeout_seconds" {
   default     = 10
 }
 
-variable "vfdash_api_key" {
-  description = "Static API key honoured by the auth middleware as a fallback to Google ID token. Lands in the Lambda function's environment, which means anyone with lambda:GetFunctionConfiguration can read it. Sourced from TF_VAR_vfdash_api_key — never put in tfvars."
+# --- Cognito (replaces vfdash_api_key + google_oauth_client_id) ---
+#
+# Phase J' / K' of the dynamic-auth rollout (vfdash repo
+# docs/social-login-cognito-DESIGN.md) replaced per-provider
+# Google validation with a Cognito User Pool. The module now
+# provisions the User Pool + App Client + Hosted UI domain +
+# Google federation, and sets the resulting IDs in the Lambda's
+# env (COGNITO_USER_POOL_ID / COGNITO_APP_CLIENT_ID / COGNITO_DOMAIN
+# / COGNITO_REGION). Local dev keeps the API key path; prod is
+# Cognito-only.
+
+variable "cognito_domain_prefix" {
+  description = "Cognito hosted UI domain prefix; resolves to <prefix>.auth.<region>.amazoncognito.com. Must be globally unique within Cognito. Default: vfdash-auth."
   type        = string
-  sensitive   = true
-  default     = ""
+  default     = "vfdash-auth"
 }
 
-variable "google_oauth_client_id" {
-  description = "Google OAuth client_id used as the audience when validating ID tokens. When empty, only the API-key path works."
+variable "callback_urls" {
+  description = "OAuth callback URLs registered on the Cognito App Client. For an unpacked Chrome extension this is `https://<install-id>.chromiumapp.org/`. Add both the local-dev install ID and (once published) the Web Store ID."
+  type        = list(string)
+}
+
+variable "google_client_id" {
+  description = "Google OAuth Web-application client ID, configured in Google Cloud Console with Cognito's /oauth2/idpresponse as the authorised redirect URI. Used by the Cognito Google IdP — the extension never sees this."
   type        = string
-  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth Web-application client secret. Stored on the Cognito IdP server-side. Sourced from TF_VAR_google_client_secret — never put in tfvars."
+  type        = string
+  sensitive   = true
 }
 
 variable "idempotency_ttl" {
