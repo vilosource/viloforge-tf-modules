@@ -108,6 +108,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         "dynamodb:PutItem",
         "dynamodb:UpdateItem",
         "dynamodb:DeleteItem",
+        "dynamodb:BatchWriteItem", # Phase M' DELETE /me wipes user data in batches
         "dynamodb:Query",
         "dynamodb:DescribeTable",
         "dynamodb:UpdateTimeToLive",
@@ -116,6 +117,22 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
         aws_dynamodb_table.main.arn,
         "${aws_dynamodb_table.main.arn}/index/*",
       ]
+    }]
+  })
+}
+
+# Phase M' — DELETE /me calls Cognito's AdminDeleteUser to remove
+# the user's identity from the User Pool. Scoped to this pool only.
+resource "aws_iam_role_policy" "lambda_cognito" {
+  name = "${var.name}-cognito"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["cognito-idp:AdminDeleteUser"]
+      Resource = aws_cognito_user_pool.main.arn
     }]
   })
 }
